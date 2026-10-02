@@ -1,0 +1,6 @@
+{
+  "name": "Digital Lost & Found",
+  "description": "Campus Digital Lost & Found system for reporting lost/found items, submitting verified claims, smart matching, and item recovery management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
