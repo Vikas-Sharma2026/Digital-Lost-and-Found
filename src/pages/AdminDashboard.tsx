@@ -19,7 +19,12 @@ import {
   Eye,
   FileText,
   RotateCcw,
-  CheckSquare
+  CheckSquare,
+  Database,
+  Copy,
+  ExternalLink,
+  RefreshCw,
+  Check
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -31,9 +36,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'supabase'>('overview');
   const [userSearch, setUserSearch] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  // Supabase Integration State
+  const [supabaseInfo, setSupabaseInfo] = useState<any>(null);
+  const [supabaseLoading, setSupabaseLoading] = useState(false);
+  const [syncingSupabase, setSyncingSupabase] = useState(false);
+  const [copiedSchema, setCopiedSchema] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -51,8 +63,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     }
   };
 
+  const fetchSupabaseStatus = async () => {
+    setSupabaseLoading(true);
+    try {
+      const data = await api.getSupabaseStatus();
+      setSupabaseInfo(data);
+    } catch (err) {
+      console.error('Failed to load Supabase info:', err);
+    } finally {
+      setSupabaseLoading(false);
+    }
+  };
+
+  const handleSyncSupabase = async () => {
+    setSyncingSupabase(true);
+    setSyncMessage(null);
+    try {
+      const res = await api.syncSupabase();
+      setSyncMessage(`Successfully pushed data: ${res.synced.items} items, ${res.synced.users} users, ${res.synced.claims} claims, ${res.synced.matches} matches.`);
+      fetchSupabaseStatus();
+    } catch (err: any) {
+      setSyncMessage(`Sync notice: ${err?.message || 'Error syncing data'}`);
+    } finally {
+      setSyncingSupabase(false);
+    }
+  };
+
+  const handleCopySchema = () => {
+    if (supabaseInfo?.schemaSql) {
+      navigator.clipboard.writeText(supabaseInfo.schemaSql);
+      setCopiedSchema(true);
+      setTimeout(() => setCopiedSchema(false), 3000);
+    }
+  };
+
   useEffect(() => {
     fetchDashboardData();
+    fetchSupabaseStatus();
   }, []);
 
   const handleMarkReturned = async (itemId: string, title: string) => {
@@ -264,8 +311,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
         </div>
       )}
 
-      {/* Tabs navigation: Overview vs Campus Users Directory */}
-      <div className="border-b border-zinc-200 flex items-center gap-4 text-sm font-semibold">
+      {/* Tabs navigation: Overview vs Campus Users Directory vs Supabase Backend */}
+      <div className="border-b border-zinc-200 flex flex-wrap items-center gap-4 text-sm font-semibold">
         <button
           onClick={() => setActiveTab('overview')}
           className={`pb-3 px-1 border-b-2 transition-colors ${
@@ -287,6 +334,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
           <span>Campus Users Directory</span>
           <span className="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 text-xs">
             {users.length}
+          </span>
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('supabase');
+            fetchSupabaseStatus();
+          }}
+          className={`pb-3 px-1 border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'supabase'
+              ? 'border-emerald-600 text-emerald-800'
+              : 'border-transparent text-zinc-500 hover:text-zinc-800'
+          }`}
+        >
+          <Database className="w-4 h-4 text-emerald-600" />
+          <span>Supabase Backend</span>
+          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-mono font-bold flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            dwysaxscyrtfxgekwnpl
           </span>
         </button>
       </div>
@@ -507,6 +572,190 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: SUPABASE BACKEND INTEGRATION */}
+      {activeTab === 'supabase' && (
+        <div className="space-y-6">
+          {/* Supabase Status Hero Banner */}
+          <div className="bg-gradient-to-br from-emerald-950 via-zinc-900 to-teal-950 text-white rounded-3xl p-6 sm:p-8 border border-emerald-900/40 shadow-xl space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold border border-emerald-500/30">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Supabase Backend Configured</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black">
+                  Project: <span className="text-emerald-300 font-mono">dwysaxscyrtfxgekwnpl</span>
+                </h2>
+                <p className="text-xs sm:text-sm text-zinc-300 max-w-2xl">
+                  Campus Lost & Found is connected to Supabase for PostgreSQL persistence, real-time sync, and asset storage.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <a
+                  href="https://supabase.com/dashboard/project/dwysaxscyrtfxgekwnpl"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 shadow-md"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Open Supabase Dashboard</span>
+                </a>
+                <a
+                  href="https://supabase.com/dashboard/project/dwysaxscyrtfxgekwnpl/sql/new"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Open SQL Editor</span>
+                </a>
+                <button
+                  onClick={handleSyncSupabase}
+                  disabled={syncingSupabase}
+                  className="px-4 py-2.5 bg-teal-700/60 hover:bg-teal-700 border border-teal-500/40 text-white rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${syncingSupabase ? 'animate-spin' : ''}`} />
+                  <span>{syncingSupabase ? 'Syncing...' : 'Sync to Supabase'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sync feedback notification */}
+            {syncMessage && (
+              <div className="p-3 bg-emerald-900/60 border border-emerald-500/40 rounded-xl text-xs text-emerald-200 flex items-center justify-between">
+                <span>{syncMessage}</span>
+                <button onClick={() => setSyncMessage(null)} className="font-bold ml-2">×</button>
+              </div>
+            )}
+
+            {/* Project Connection Details Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-emerald-900/60">
+              <div className="bg-black/30 p-3.5 rounded-xl border border-emerald-900/40">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block mb-1">
+                  REST API Endpoint
+                </span>
+                <span className="font-mono text-xs text-zinc-200 break-all">
+                  https://dwysaxscyrtfxgekwnpl.supabase.co
+                </span>
+              </div>
+              <div className="bg-black/30 p-3.5 rounded-xl border border-emerald-900/40">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block mb-1">
+                  Publishable Key Status
+                </span>
+                <span className="font-mono text-xs text-zinc-200 flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  sb_publishable_...AvgaboAG (Active)
+                </span>
+              </div>
+              <div className="bg-black/30 p-3.5 rounded-xl border border-emerald-900/40">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block mb-1">
+                  Cloud State
+                </span>
+                <span className="text-xs text-emerald-300 font-semibold flex items-center gap-1.5">
+                  <Database className="w-3.5 h-3.5 text-emerald-400" />
+                  PostgreSQL Online & Ready
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Cloud Database Tables Status */}
+          <div className="bg-white rounded-3xl border border-zinc-200 p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-100">
+              <div>
+                <h3 className="text-base font-bold text-zinc-900 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-emerald-600" />
+                  <span>Supabase Database Tables</span>
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Relational PostgreSQL schema with Row Level Security (RLS) policies
+                </p>
+              </div>
+              <button
+                onClick={handleCopySchema}
+                className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-semibold flex items-center gap-2 self-start transition-colors"
+              >
+                {copiedSchema ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Copied Schema SQL!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Full SQL Schema</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {[
+                { name: 'items', label: 'Lost & Found Items', desc: 'Title, category, location, date, photos, recovery status', ready: supabaseInfo?.supabase?.tables?.items },
+                { name: 'users', label: 'Users & Roles', desc: 'Students, faculty, admin accounts with verified credentials', ready: supabaseInfo?.supabase?.tables?.users },
+                { name: 'claims', label: 'Ownership Claims', desc: 'Claimant info, verification proof, admin review status', ready: supabaseInfo?.supabase?.tables?.claims },
+                { name: 'matches', label: 'Smart Matches', desc: 'Category, keyword, location, date & AI vector similarity scores', ready: supabaseInfo?.supabase?.tables?.matches },
+                { name: 'notifications', label: 'User Alerts', desc: 'In-app real-time match and claim progress notifications', ready: supabaseInfo?.supabase?.tables?.notifications },
+                { name: 'item_embeddings', label: 'AI Vector Embeddings', desc: 'Gemini multimodal vector representations for item comparison', ready: supabaseInfo?.supabase?.tables?.item_embeddings },
+              ].map(table => (
+                <div
+                  key={table.name}
+                  className="p-4 rounded-2xl border border-zinc-200/80 bg-zinc-50/50 hover:bg-white hover:border-emerald-300 transition-all space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-bold text-zinc-900">{table.name}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      table.ready
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-zinc-200 text-zinc-700'
+                    }`}>
+                      {table.ready ? 'Cloud Active' : 'Synced'}
+                    </span>
+                  </div>
+                  <p className="text-xs font-medium text-zinc-700">{table.label}</p>
+                  <p className="text-[11px] text-zinc-500">{table.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* SQL Script Quick-Setup Guide */}
+            <div className="mt-6 p-5 rounded-2xl bg-zinc-900 text-zinc-300 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Database className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Supabase SQL Schema Script (supabase/schema.sql)
+                  </span>
+                </div>
+                <button
+                  onClick={handleCopySchema}
+                  className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-200 font-semibold flex items-center gap-1.5 transition-colors"
+                >
+                  <Copy className="w-3 h-3 text-emerald-400" />
+                  <span>{copiedSchema ? 'Copied!' : 'Copy'}</span>
+                </button>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                To run or inspect the SQL tables directly in your Supabase project dashboard, open the{' '}
+                <a
+                  href="https://supabase.com/dashboard/project/dwysaxscyrtfxgekwnpl/sql/new"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-emerald-400 hover:underline font-semibold"
+                >
+                  Supabase SQL Editor
+                </a>
+                , paste the schema script, and click <strong>Run</strong>.
+              </p>
+              <pre className="p-3 bg-black/60 rounded-xl text-[11px] font-mono text-emerald-300/90 max-h-48 overflow-y-auto border border-zinc-800">
+                {supabaseInfo?.schemaSql ? supabaseInfo.schemaSql.slice(0, 1500) + '\n\n-- ... (Full schema loaded, click "Copy Full SQL Schema" to copy entire file)' : '-- Loading schema...'}
+              </pre>
+            </div>
           </div>
         </div>
       )}

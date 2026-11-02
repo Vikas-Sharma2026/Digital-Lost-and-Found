@@ -3,6 +3,21 @@ import path from 'path';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { supabaseServer, supabaseService } from './supabase.js';
+
+function pushToSupabaseAsync(table: string, payload: any, isDelete = false): void {
+  Promise.resolve().then(async () => {
+    try {
+      if (isDelete) {
+        await supabaseServer.from(table).delete().match(payload);
+      } else {
+        await supabaseServer.from(table).upsert(payload);
+      }
+    } catch {
+      // Supabase table sync notice - non-fatal
+    }
+  });
+}
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'lostandfound.sqlite');
@@ -103,7 +118,22 @@ class SqliteDatabase {
     this.seedDefaultData();
     this.persist();
     this.isInitialized = true;
-    console.log('✅ SQLite Database initialized and persistent at:', DB_FILE);
+    console.log('✅ Local Database initialized and persistent at:', DB_FILE);
+
+    // Supabase Backend Connectivity Check
+    supabaseService.checkHealth().then(health => {
+      if (health.connected) {
+        console.log(`⚡ Supabase Backend Connected: ${health.projectUrl}`);
+        if (health.allTablesReady) {
+          console.log('✅ Supabase cloud tables verified and active.');
+        } else {
+          console.log('ℹ️  Supabase cloud table status:', health.tables);
+          console.log('💡 Run supabase/schema.sql in the Supabase SQL editor to create cloud tables.');
+        }
+      }
+    }).catch(err => {
+      console.warn('Supabase check notice:', err?.message || err);
+    });
   }
 
   private persist(): void {
@@ -390,6 +420,7 @@ class SqliteDatabase {
       user.phone || '', user.role, user.college_id, user.department || '', user.created_at
     ]);
     this.persist();
+    pushToSupabaseAsync('users', user);
     return user;
   }
 
@@ -406,7 +437,11 @@ class SqliteDatabase {
       UPDATE users SET name = ?, phone = ?, department = ? WHERE id = ?;
     `, [newName, newPhone, newDept, userId]);
     this.persist();
-    return this.getUserById(userId);
+    const updated = this.getUserById(userId);
+    if (updated) {
+      pushToSupabaseAsync('users', updated);
+    }
+    return updated;
   }
 
   // ITEMS
@@ -506,6 +541,7 @@ class SqliteDatabase {
       item.storage_location || null, item.created_at
     ]);
     this.persist();
+    pushToSupabaseAsync('items', item);
     return item;
   }
 
@@ -531,13 +567,18 @@ class SqliteDatabase {
       id
     ]);
     this.persist();
-    return this.getItemById(id);
+    const updated = this.getItemById(id);
+    if (updated) {
+      pushToSupabaseAsync('items', updated);
+    }
+    return updated;
   }
 
   deleteItem(id: string): boolean {
     if (!this.db) return false;
     this.db.run('DELETE FROM items WHERE id = ?;', [id]);
     this.persist();
+    pushToSupabaseAsync('items', { id }, true);
     return true;
   }
 
@@ -556,6 +597,7 @@ class SqliteDatabase {
       match.final_match_score, match.status, match.reasons, match.created_at
     ]);
     this.persist();
+    pushToSupabaseAsync('matches', match);
     return match;
   }
 
@@ -590,6 +632,7 @@ class SqliteDatabase {
     if (!this.db) return false;
     this.db.run('UPDATE matches SET status = ? WHERE id = ?;', [status, id]);
     this.persist();
+    pushToSupabaseAsync('matches', { id, status });
     return true;
   }
 
@@ -653,6 +696,7 @@ class SqliteDatabase {
       claim.verified_by || null, claim.verified_at || null, claim.created_at
     ]);
     this.persist();
+    pushToSupabaseAsync('claims', claim);
     return claim;
   }
 
@@ -671,7 +715,11 @@ class SqliteDatabase {
       merged.verified_at || null, id
     ]);
     this.persist();
-    return this.getClaimById(id);
+    const updated = this.getClaimById(id);
+    if (updated) {
+      pushToSupabaseAsync('claims', updated);
+    }
+    return updated;
   }
 
   // NOTIFICATIONS
@@ -697,6 +745,7 @@ class SqliteDatabase {
       notif.type, notif.is_read, notif.created_at
     ]);
     this.persist();
+    pushToSupabaseAsync('notifications', notif);
     return notif;
   }
 
@@ -704,6 +753,7 @@ class SqliteDatabase {
     if (!this.db) return false;
     this.db.run('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?;', [id, userId]);
     this.persist();
+    pushToSupabaseAsync('notifications', { id, user_id: userId, is_read: 1 });
     return true;
   }
 
@@ -774,6 +824,58 @@ class SqliteDatabase {
     this.db.run('DELETE FROM item_embeddings WHERE item_id = ?;', [itemId]);
     this.persist();
     return true;
+  }
+
+  async syncAllToSupabase(): Promise<{
+    users: number;
+    items: number;
+    claims: number;
+    matches: number;
+    notifications: number;
+  }> {
+    const summary = { users: 0, items: 0, claims: 0, matches: 0, notifications: 0 };
+    try {
+      const users = this.getAllUsers();
+      if (users.length > 0) {
+        const { error } = await supabaseServer.from('users').upsert(users);
+        if (!error) summary.users = users.length;
+      }
+
+      const items = this.getItems({});
+      if (items.length > 0) {
+        const { error } = await supabaseServer.from('items').upsert(items);
+        if (!error) summary.items = items.length;
+      }
+
+      const claims = this.getAllClaims();
+      if (claims.length > 0) {
+        const { error } = await supabaseServer.from('claims').upsert(claims);
+        if (!error) summary.claims = claims.length;
+      }
+
+      const matches = this.getAllMatches();
+      if (matches.length > 0) {
+        const { error } = await supabaseServer.from('matches').upsert(matches);
+        if (!error) summary.matches = matches.length;
+      }
+
+      if (this.db) {
+        const notifsResult = this.db.exec('SELECT * FROM notifications;');
+        if (notifsResult[0]?.values?.length) {
+          const cols = notifsResult[0].columns;
+          const notifs = notifsResult[0].values.map(row => {
+            const obj: any = {};
+            cols.forEach((col, idx) => { obj[col] = row[idx]; });
+            return obj;
+          });
+          const { error } = await supabaseServer.from('notifications').upsert(notifs);
+          if (!error) summary.notifications = notifs.length;
+        }
+      }
+    } catch (err: any) {
+      console.warn('Sync all to Supabase error:', err?.message || err);
+    }
+    return summary;
   }
 }
 

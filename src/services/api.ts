@@ -212,4 +212,50 @@ export const api = {
     apiRequest<{ message: string }>(`/api/admin/items/${id}`, {
       method: 'DELETE',
     }),
+
+  // Supabase Integration
+  getSupabaseStatus: () =>
+    apiRequest<{
+      success: boolean;
+      supabase: {
+        connected: boolean;
+        projectUrl: string;
+        apiUrl: string;
+        tables: {
+          users: boolean;
+          items: boolean;
+          claims: boolean;
+          matches: boolean;
+          notifications: boolean;
+          item_embeddings: boolean;
+        };
+        allTablesReady: boolean;
+        projectRef: string;
+        dashboardUrl: string;
+        sqlEditorUrl: string;
+        stats: {
+          usersCount: number;
+          itemsCount: number;
+          claimsCount: number;
+          matchesCount: number;
+        };
+        error?: string;
+      };
+      schemaSql: string;
+    }>('/api/supabase/status'),
+
+  syncSupabase: () =>
+    apiRequest<{
+      success: boolean;
+      message: string;
+      synced: {
+        users: number;
+        items: number;
+        claims: number;
+        matches: number;
+        notifications: number;
+      };
+    }>('/api/supabase/sync', {
+      method: 'POST',
+    }),
 };

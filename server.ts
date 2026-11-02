@@ -10,6 +10,7 @@ import claimRoutes from './server/routes/claimRoutes.js';
 import matchRoutes from './server/routes/matchRoutes.js';
 import notificationRoutes from './server/routes/notificationRoutes.js';
 import adminRoutes from './server/routes/adminRoutes.js';
+import supabaseRoutes from './server/routes/supabaseRoutes.js';
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ async function startServer() {
   app.use('/api/matches', matchRoutes);
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/supabase', supabaseRoutes);
 
   // Health check endpoint
   app.get('/api/health', (_req: Request, res: Response) => {

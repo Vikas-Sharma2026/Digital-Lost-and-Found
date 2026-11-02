@@ -98,11 +98,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
         <div className="pt-6 border-t border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
           <p>© {new Date().getFullYear()} Digital Lost & Found • College Campus Project. All rights reserved.</p>
-          <div className="flex items-center gap-4">
-            <span className="inline-flex items-center gap-1.5 text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Live Database Connected
-            </span>
+          <div className="flex flex-wrap items-center gap-4">
+            <a
+              href="https://supabase.com/dashboard/project/dwysaxscyrtfxgekwnpl"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 hover:text-emerald-200 hover:border-emerald-400 transition-colors"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Supabase Backend: <strong className="font-mono text-emerald-200">dwysaxscyrtfxgekwnpl</strong></span>
+            </a>
           </div>
         </div>
       </div>
